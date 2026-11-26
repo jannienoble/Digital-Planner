@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d1230">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>body{margin:0}</style>
+<title>Jane's Life Planner</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@600;700&display=swap">
+<style>
+/* Layout: sidebar + dashboard grid; bottom tab bar on phones. Dark navy first, after Jane's mockup. */
+:root{--bg:#0d1230;--panel:#171e45;--line:#2c356b;--fg:#f2f4ff;--mute:#a9b1dc;--accent:#22d3ee;--nav:#1d6bff;--violet:#4b36c9;--green:#08795f;--orange:#bd4f0c;--pink:#c4246b;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 Inter,system-ui,sans-serif}
+h1,h2,.big{font-family:"Space Grotesk",system-ui,sans-serif;margin:0;line-height:1.2}
+h1{font-size:1.7rem}h2{font-size:1.05rem}
+.app{display:grid;grid-template-columns:190px minmax(0,1fr);gap:20px;max-width:1150px;margin:0 auto;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+nav{display:flex;flex-direction:column;gap:4px;position:sticky;top:calc(env(safe-area-inset-top,0px) + 16px);align-self:start}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px 13px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+nav button{text-align:left;border-color:transparent;background:none}
+nav button[aria-current]{background:var(--nav);color:#fff;font-weight:600}
+.primary{background:var(--nav);color:#fff;border-color:var(--nav);font-weight:600}
+main{display:flex;flex-direction:column;gap:16px;min-width:0}
+header{display:flex;flex-wrap:wrap;justify-content:space-between;gap:10px;align-items:end}
+header b{color:var(--accent)}
+.mute{color:var(--mute);font-size:.87rem;margin:0}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.stat{color:#fff;border:0;text-align:left;padding:14px;display:flex;flex-direction:column}
+.stat .big{font-size:2rem}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.rings{display:flex;flex-wrap:wrap;gap:18px;justify-content:space-around}
+.ring{width:96px;text-align:center;font-size:.82rem;overflow-wrap:anywhere}
+.ring div{width:88px;height:88px;margin:0 auto 6px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
+.ring span{width:68px;height:68px;border-radius:50%;background:var(--panel);display:grid;place-items:center;font-weight:600}
+.row{display:flex;align-items:center;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.row>.grow{flex:1;min-width:0;overflow-wrap:anywhere}
+.row input[type=checkbox]{width:20px;height:20px;accent-color:#10b981;flex:none}
+.done{text-decoration:line-through;color:var(--mute)}
+.x{padding:3px 9px;color:var(--mute);flex:none}
+form{display:flex;flex-wrap:wrap;gap:8px}
+input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-width:0;max-width:100%}
+form input[type=text],textarea{flex:1 1 180px}
+textarea{width:100%;min-height:90px}
+input[type=range]{width:100%;padding:0}
+.habits{overflow-x:auto}
+table{border-collapse:collapse;width:100%}
+th,td{padding:5px 2px;text-align:center;font-size:.82rem}
+th:first-child,td:first-child{text-align:left;padding-right:6px}
+.dot{width:29px;height:29px;border-radius:50%;padding:0;background:none}
+.dot[aria-pressed=true]{background:#10b981;border-color:#10b981;color:#06251b;font-weight:700}
+.quote{background:linear-gradient(135deg,var(--violet),var(--pink));color:#fff;border-radius:14px;padding:18px;font:600 1.15rem "Space Grotesk",sans-serif}
+.note{white-space:pre-wrap}
+.status{font-size:.8rem;color:var(--mute)}
+@media(max-width:720px){
+.app{grid-template-columns:minmax(0,1fr);padding-bottom:130px}
+nav{position:fixed;inset:auto 0 0 0;top:auto;z-index:5;flex-direction:row;flex-wrap:wrap;justify-content:center;background:var(--panel);border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom,0px))}
+nav button{padding:6px 9px;font-size:.82rem;text-align:center}
+.stats{gap:8px}.stat{padding:10px;font-size:.8rem}
+}
+</style>
+</head><body>
+<div class="app"><nav id="nav"></nav><main><div class="status" id="status" role="status"></div><div id="view" style="display:contents"></div></main></div>
+<script>
+const TABS=["Dashboard","Goals","Tasks","Habits","Money","Ideas","Wellness","Settings"];
+const KEYS=["goals","tasks","habits","money","ideas","wellness","settings"];
+const S={goals:[],tasks:[],habits:[],money:[],ideas:[],wellness:[],settings:[]};
+const QUOTES=["Consistency turns your dreams into reality.","Small steps every day add up.","You are capable of amazing things.","Plan it, then start with the smallest part.","Progress counts, even when it is slow."];
+let tab="Dashboard",ready=false,col=null,msg="Loading your planner…";
+const $=id=>document.getElementById(id);
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=()=>iso(new Date());
+const week=()=>{const d=new Date();d.setDate(d.getDate()-(d.getDay()+6)%7);return [...Array(7)].map((_,i)=>{const x=new Date(d);x.setDate(d.getDate()+i);return iso(x)})};
+const nice=s=>s?new Date(s+"T12:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"}):"No date";
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const naira=n=>(n<0?"−":"")+"₦"+Math.abs(n).toLocaleString("en-NG");
+
+/* saving: this browser only */
+const STORE="jane-life-planner";
+function save(k){
+  try{localStorage.setItem(STORE,JSON.stringify(S));msg=""}catch(e){msg="This browser couldn't save your change. Download a backup from Settings before you close the app."}
+  render();
+}
+const str=v=>typeof v==="string"?v:"";
+function clean(d){
+  if(!d||!KEYS.every(k=>Array.isArray(d[k])))throw new Error("bad");
+  const out={};
+  KEYS.forEach(k=>out[k]=d[k].map(x=>{
+    if(!x||typeof x!=="object"||typeof x.id!=="string")throw new Error("bad");
+    const o={...x};["name","text","what","cat","due","date","type","mood","well","stuck","next"].forEach(f=>{if(f in o)o[f]=str(o[f])});
+    if(k==="habits")o.days=Array.isArray(x.days)?x.days.filter(v=>typeof v==="string"):[];
+    if(k==="goals")o.pct=Math.min(100,Math.max(0,+x.pct||0));
+    if(k==="money"){o.amt=+x.amt||0;o.date=str(x.date)}
+    return o}));
+  return out;
+}
+function load(){
+  try{const raw=localStorage.getItem(STORE);if(raw)Object.assign(S,clean(JSON.parse(raw)));ready=true;msg=""}
+  catch(e){ready=false;msg="Your saved planner couldn't be read. Check that this browser allows site data, then reload."}
+  render();
+}
+function backup(){
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,2)],{type:"application/json"}));
+  a.download="life-planner-backup-"+today()+".json";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+}
+let pending=null;
+window.addEventListener("storage",e=>{if(e.key===STORE)load()});
+
+const del=(k,i,label)=>`<button class="x" data-act="del" data-k="${k}" data-id="${esc(i)}" aria-label="Delete ${esc(label)}">✕</button>`;
+const empty=t=>`<p class="mute">${t}</p>`;
+const panel=(h,b)=>`<section class="panel"><h2>${h}</h2>${b}</section>`;
+const colors=["#3b82f6","#34d399","#22d3ee","#f59e0b","#f472b6","#a78bfa"];
+const rings=()=>S.goals.length?`<div class="rings">${S.goals.map((g,n)=>`<div class="ring"><div style="--p:${+g.pct||0};--c:${colors[n%6]}"><span>${+g.pct||0}%</span></div>${esc(g.name)}</div>`).join("")}</div>`:empty("Add a goal in Goals to see its progress ring here.");
+function habitTable(edit){
+  if(!S.habits.length)return empty("Add a habit in Habits, then tick it off each day.");
+  const w=week();
+  return `<div class="habits"><table><tr><th>This week</th>${"MTWTFSS".split("").map(d=>`<th>${d}</th>`).join("")}${edit?"<th></th>":""}</tr>${S.habits.map(h=>`<tr><td>${esc(h.name)}</td>${w.map(d=>{const on=h.days.includes(d);return `<td><button class="dot" data-act="habit" data-id="${esc(h.id)}" data-d="${d}" aria-pressed="${on}" aria-label="${esc(h.name)} ${nice(d)}" ${d>today()?"disabled":""}>${on?"✓":""}</button></td>`}).join("")}${edit?`<td>${del("habits",h.id,h.name)}</td>`:""}</tr>`).join("")}</table></div>`;
+}
+const sorted=a=>[...a].sort((x,y)=>(x.done-y.done)||(x.due||"9").localeCompare(y.due||"9"));
+const taskRows=a=>sorted(a).map(t=>`<div class="row"><input type="checkbox" id="t-${esc(t.id)}" data-act="task" data-id="${esc(t.id)}" ${t.done?"checked":""}><label class="grow" for="t-${esc(t.id)}"><span class="${t.done?"done":""}">${esc(t.text)}</span><br><span class="mute">${nice(t.due)}${!t.done&&t.due&&t.due<today()?" · Overdue":""}</span></label>${del("tasks",t.id,t.text)}</div>`).join("");
+const addTask=()=>`<form data-form="tasks"><input type="text" id="task-text" name="text" placeholder="New task" aria-label="New task" required><input type="date" id="task-due" name="due" value="${today()}" aria-label="Due date"><button class="primary">Add task</button></form>`;
+
+const V={
+Dashboard(){
+  const w=week(),open=S.tasks.filter(t=>!t.done);
+  const due=open.filter(t=>t.due&&t.due<=today()),wk=open.filter(t=>t.due>=w[0]&&t.due<=w[6]);
+  const next=sorted(open.filter(t=>t.due>today())).slice(0,4);
+  const none=!KEYS.slice(0,3).some(k=>S[k].length);
+  return `${none?panel("Start your plan",`<p class="mute">Add your own goals, or load an example plan to try the app. Examples are labelled and you can delete them.</p><div><button class="primary" data-act="sample">Load example plan</button> <button data-act="go" data-t="Goals">Add my first goal</button></div>`):""}
+  <div class="stats">${[["Goals",S.goals.filter(g=>g.pct<100).length,"Active goals","violet"],["Tasks",due.length,"Due today or late","green"],["Tasks",wk.length,"Open this week","orange"]].map(([t,n,l,c])=>`<button class="stat" style="background:var(--${c})" data-act="go" data-t="${t}"><span class="big">${n}</span>${l}</button>`).join("")}</div>
+  <div class="two">${panel("Goal progress",rings())}${panel("Habit tracker",habitTable(false))}</div>
+  <div class="two">${panel("Today",(due.length?taskRows(due):empty("Nothing due today."))+addTask())}${panel("Coming up",next.length?taskRows(next):empty("Tasks with future dates appear here."))}</div>
+  <div class="quote">“${QUOTES[new Date().getDate()%QUOTES.length]}”</div>`;
+},
+Goals(){return panel("Set a goal",`<form data-form="goals"><input type="text" id="goal-name" name="name" placeholder="e.g. Submit PhD application" aria-label="Goal" required><select id="goal-cat" name="cat" aria-label="Category">${["Study","Research","Career","YouTube","Money","Health","Life"].map(c=>`<option>${c}</option>`).join("")}</select><button class="primary">Add goal</button></form><p class="mute">Drag the slider to update progress.</p>`+S.goals.map(g=>`<div class="row"><div class="grow"><b>${esc(g.name)}</b> <span class="mute">${esc(g.cat)} · ${+g.pct}%${g.pct>=100?" · Done, great job!":""}</span><input type="range" id="g-${esc(g.id)}" min="0" max="100" step="5" value="${+g.pct}" data-act="pct" data-id="${esc(g.id)}" aria-label="Progress for ${esc(g.name)}"></div>${del("goals",g.id,g.name)}</div>`).join(""))},
+Tasks(){return panel("Tasks",addTask()+(S.tasks.length?taskRows(S.tasks):empty("No tasks yet. Break a goal into small steps.")))},
+Habits(){return panel("Habits",`<form data-form="habits"><input type="text" id="habit-name" name="name" placeholder="e.g. Read for 20 minutes" aria-label="New habit" required><button class="primary">Add habit</button></form>`+habitTable(true))},
+Money(){
+  const m=today().slice(0,7),a=S.money.filter(x=>x.date.startsWith(m)),sum=t=>a.filter(x=>x.type===t).reduce((s,x)=>s+x.amt,0),i=sum("Income"),e=sum("Expense"),s=sum("Savings");
+  return `<div class="stats">${[["Income",i,"green"],["Spent",e,"pink"],["Saved",s,"violet"]].map(([l,n,c])=>`<div class="panel stat" style="background:var(--${c})"><b style="overflow-wrap:anywhere">${naira(n)}</b>${l}</div>`).join("")}</div>`+panel("This month",`<p class="mute">Left after spending and saving: <b>${naira(i-e-s)}</b></p><form data-form="money"><input type="text" id="m-what" name="what" placeholder="What was it?" aria-label="Description" required><input type="number" id="m-amt" name="amt" min="1" step="any" placeholder="Amount ₦" aria-label="Amount in naira" required><select id="m-type" name="type" aria-label="Type"><option>Expense</option><option>Income</option><option>Savings</option></select><button class="primary">Add entry</button></form>`+[...a].reverse().map(x=>`<div class="row"><div class="grow">${esc(x.what)}<br><span class="mute">${esc(x.type)} · ${nice(x.date)}</span></div><b>${naira(+x.amt)}</b>${del("money",x.id,x.what)}</div>`).join(""))},
+Ideas(){return panel("Capture an idea",`<form data-form="ideas"><textarea id="idea-text" name="text" placeholder="Video idea, research question, note…" aria-label="Idea" required></textarea><button class="primary">Save idea</button></form>`+[...S.ideas].reverse().map(x=>`<div class="row"><div class="grow"><div class="note">${esc(x.text)}</div><span class="mute">${nice(x.date)}</span></div>${del("ideas",x.id,"idea")}</div>`).join(""))},
+Wellness(){return panel("Daily check-in",`<form data-form="wellness"><select id="w-mood" name="mood" aria-label="Mood"><option>Great</option><option>Good</option><option>Okay</option><option>Low</option></select><textarea id="w-well" name="well" placeholder="What went well?" aria-label="What went well"></textarea><textarea id="w-stuck" name="stuck" placeholder="Where did you get stuck?" aria-label="Where you got stuck"></textarea><textarea id="w-next" name="next" placeholder="What matters tomorrow?" aria-label="What matters tomorrow"></textarea><button class="primary">Save check-in</button></form>`+[...S.wellness].reverse().slice(0,14).map(x=>`<div class="row"><div class="grow"><b>${nice(x.date)} · ${esc(x.mood)}</b>${[["Went well",x.well],["Stuck",x.stuck],["Tomorrow",x.next]].filter(p=>p[1]).map(p=>`<div class="note">${p[0]}: ${esc(p[1])}</div>`).join("")}</div>${del("wellness",x.id,"check-in")}</div>`).join(""))},
+Settings(){return panel("Backup and restore",`<p class="mute">Your planner is saved only in this browser. Download a backup regularly. The file is not password protected, so keep it somewhere private.</p><div><button class="primary" data-act="backup">Download backup</button></div><label for="restore">Restore from a backup file</label><input type="file" id="restore" accept=".json,application/json">${pending?'<p class="mute">Restoring replaces everything now in this planner.</p><div><button class="primary" data-act="restore">Replace with backup</button> <button data-act="cancel">Cancel</button></div>':""}`)+panel("Your name",`<form data-form="settings"><input type="text" id="s-name" name="name" value="${esc(S.settings[0]?.name||"Jane")}" aria-label="Your name" required><button class="primary">Save name</button></form>`)+panel("Examples",`<p class="mute">Removes only the items labelled Example.</p><div><button data-act="clear">Remove examples</button></div>`)}
+};
+
+function render(){
+  const hr=new Date().getHours(),greet=hr<12?"Good morning":hr<17?"Good afternoon":"Good evening";
+  $("nav").innerHTML=TABS.map(t=>`<button data-act="go" data-t="${t}" ${t===tab?'aria-current="page"':""}>${t}</button>`).join("");
+  $("status").textContent=msg;
+  const keep={},a=document.activeElement?.id;
+  document.querySelectorAll("#view form [id]").forEach(e=>{if(e.value!==e.defaultValue)keep[e.id]=e.value});
+  $("view").innerHTML=`<header><div><h1>${greet}, <b>${esc(S.settings[0]?.name||"Jane")}!</b></h1><p class="mute">Plan. Focus. Achieve.</p></div><p class="mute">${nice(today())} ${new Date().getFullYear()}</p></header>`+(ready?V[tab]():"");
+  for(const id in keep)if($(id)&&$(id).tagName!=="SELECT")$(id).value=keep[id];else if($(id))$(id).value=keep[id];
+  if(a&&$(a))$(a).focus({preventScroll:true});
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button[data-act]");if(!b)return;const {act,k,id,d,t}=b.dataset;
+  if(act==="go"){tab=t;render();window.scrollTo(0,0)}
+  if(act==="del"){
+    if(!b.dataset.sure){b.dataset.sure=1;b.textContent="Delete?";return}
+    S[k]=S[k].filter(x=>x.id!==id);save(k)}
+  if(act==="habit"){const h=S.habits.find(x=>x.id===id);h.days=h.days.includes(d)?h.days.filter(x=>x!==d):[...h.days,d];save("habits")}
+  if(act==="sample"){
+    const x=(o)=>({id:uid(),ex:true,...o}),n=new Date(),plus=i=>{const q=new Date(n);q.setDate(q.getDate()+i);return iso(q)};
+    S.goals.push(...[["PhD application","Research",40],["Remote job","Career",25],["Grow YouTube channel","YouTube",30]].map(([a,c,p])=>x({name:"Example: "+a,cat:c,pct:p})));
+    S.tasks.push(...[["Draft research proposal",0],["Study AI for 1 hour",1],["Script next video",3]].map(([a,i])=>x({text:"Example: "+a,due:plus(i),done:false})));
+    S.habits.push(...["Exercise","Read","Meditate"].map(a=>x({name:"Example: "+a,days:[]})));
+    ["goals","tasks","habits"].forEach(save)}
+  if(act==="backup")backup();
+  if(act==="restore"&&pending){Object.assign(S,pending);pending=null;save();if(!msg){msg="Backup restored.";render()}}
+  if(act==="cancel"){pending=null;render()}
+  if(act==="clear"){["goals","tasks","habits"].forEach(k=>{S[k]=S[k].filter(x=>!x.ex);save(k)});tab="Dashboard";render()}
+});
+document.addEventListener("change",async e=>{
+  if(e.target.id==="restore"){
+    const f=e.target.files[0];if(!f)return;
+    try{pending=clean(JSON.parse(await f.text()));msg=""}catch(x){pending=null;msg="That file isn't a planner backup. Choose a life-planner-backup file."}
+    render();window.scrollTo(0,0);return}
+  const {act,id}=e.target.dataset;
+  if(act==="task"){const t=S.tasks.find(x=>x.id===id);t.done=e.target.checked;save("tasks")}
+  if(act==="pct"){S.goals.find(x=>x.id===id).pct=+e.target.value;save("goals")}
+});
+document.addEventListener("submit",e=>{
+  e.preventDefault();const f=e.target,k=f.dataset.form,o=Object.fromEntries(new FormData(f));
+  for(const n in o)o[n]=o[n].trim();
+  if(["text","name","what"].some(n=>n in o&&!o[n]))return;
+  const item={id:uid(),...o};
+  if(k==="goals")item.pct=0;if(k==="tasks")item.done=false;if(k==="habits")item.days=[];
+  if(k==="money")item.amt=+o.amt;if(["money","ideas","wellness"].includes(k))item.date=today();
+  f.reset();f.querySelectorAll("input[type=text],input[type=number],textarea").forEach(i=>i.value=i.defaultValue);
+  if(k==="settings")S.settings=[item];else S[k].push(item);
+  save(k);
+});
+load();
+if("serviceWorker" in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body></html>
