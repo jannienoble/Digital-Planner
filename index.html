@@ -40,6 +40,7 @@ header b{color:var(--accent)}
 .row>.grow{flex:1;min-width:0;overflow-wrap:anywhere}
 .row input[type=checkbox]{width:20px;height:20px;accent-color:#10b981;flex:none}
 .done{text-decoration:line-through;color:var(--mute)}
+.cal{padding:4px 10px;font-size:.8rem;margin-top:5px}
 .x{padding:3px 9px;color:var(--mute);flex:none}
 form{display:flex;flex-wrap:wrap;gap:8px}
 input,select,textarea{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px;min-width:0;max-width:100%}
@@ -91,7 +92,7 @@ function clean(d){
   const out={};
   KEYS.forEach(k=>out[k]=d[k].map(x=>{
     if(!x||typeof x!=="object"||typeof x.id!=="string")throw new Error("bad");
-    const o={...x};["name","text","what","cat","due","date","type","mood","well","stuck","next"].forEach(f=>{if(f in o)o[f]=str(o[f])});
+    const o={...x};["name","text","what","cat","due","time","date","type","mood","well","stuck","next"].forEach(f=>{if(f in o)o[f]=str(o[f])});
     if(k==="habits")o.days=Array.isArray(x.days)?x.days.filter(v=>typeof v==="string"):[];
     if(k==="goals")o.pct=Math.min(100,Math.max(0,+x.pct||0));
     if(k==="money"){o.amt=+x.amt||0;o.date=str(x.date)}
@@ -110,6 +111,26 @@ function backup(){
 let pending=null;
 window.addEventListener("storage",e=>{if(e.key===STORE)load()});
 
+/* calendar reminder file (.ics) */
+const validTime=v=>/^([01]\d|2[0-3]):[0-5]\d$/.test(v||"")?v:"09:00";
+const icsText=v=>String(v).replace(/\\/g,"\\\\").replace(/\r\n|\r|\n/g,"\\n").replace(/;/g,"\\;").replace(/,/g,"\\,");
+function fold(line){
+  const enc=new TextEncoder();let out="",n=0;
+  for(const ch of line){const b=enc.encode(ch).length;if(n+b>74){out+="\r\n ";n=1}out+=ch;n+=b}
+  return out;
+}
+function icsFor(t){
+  const start=t.due.replace(/-/g,"")+"T"+validTime(t.time).replace(":","")+"00";
+  const stamp=new Date().toISOString().replace(/[-:]/g,"").slice(0,15)+"Z";
+  return ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Life Planner//EN","BEGIN:VEVENT","UID:"+String(t.id).replace(/[^a-z0-9]/gi,"")+"@life-planner","DTSTAMP:"+stamp,"DTSTART:"+start,"DURATION:PT15M","SUMMARY:"+icsText(t.text),"BEGIN:VALARM","ACTION:DISPLAY","DESCRIPTION:"+icsText(t.text),"TRIGGER:PT0M","END:VALARM","END:VEVENT","END:VCALENDAR"].map(fold).join("\r\n")+"\r\n";
+}
+function addToCalendar(t){
+  if(new Date(t.due+"T"+validTime(t.time))<=new Date()){msg="That reminder time has passed. Add the task again with a later date or time.";render();window.scrollTo(0,0);return}
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([icsFor(t)],{type:"text/calendar;charset=utf-8"}));
+  a.download="task-reminder.ics";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  msg="Calendar file created. Open it, save the event in your calendar, and check that its alert is on.";render();window.scrollTo(0,0);
+}
+
 const del=(k,i,label)=>`<button class="x" data-act="del" data-k="${k}" data-id="${esc(i)}" aria-label="Delete ${esc(label)}">✕</button>`;
 const empty=t=>`<p class="mute">${t}</p>`;
 const panel=(h,b)=>`<section class="panel"><h2>${h}</h2>${b}</section>`;
@@ -121,8 +142,8 @@ function habitTable(edit){
   return `<div class="habits"><table><tr><th>This week</th>${"MTWTFSS".split("").map(d=>`<th>${d}</th>`).join("")}${edit?"<th></th>":""}</tr>${S.habits.map(h=>`<tr><td>${esc(h.name)}</td>${w.map(d=>{const on=h.days.includes(d);return `<td><button class="dot" data-act="habit" data-id="${esc(h.id)}" data-d="${d}" aria-pressed="${on}" aria-label="${esc(h.name)} ${nice(d)}" ${d>today()?"disabled":""}>${on?"✓":""}</button></td>`}).join("")}${edit?`<td>${del("habits",h.id,h.name)}</td>`:""}</tr>`).join("")}</table></div>`;
 }
 const sorted=a=>[...a].sort((x,y)=>(x.done-y.done)||(x.due||"9").localeCompare(y.due||"9"));
-const taskRows=a=>sorted(a).map(t=>`<div class="row"><input type="checkbox" id="t-${esc(t.id)}" data-act="task" data-id="${esc(t.id)}" ${t.done?"checked":""}><label class="grow" for="t-${esc(t.id)}"><span class="${t.done?"done":""}">${esc(t.text)}</span><br><span class="mute">${nice(t.due)}${!t.done&&t.due&&t.due<today()?" · Overdue":""}</span></label>${del("tasks",t.id,t.text)}</div>`).join("");
-const addTask=()=>`<form data-form="tasks"><input type="text" id="task-text" name="text" placeholder="New task" aria-label="New task" required><input type="date" id="task-due" name="due" value="${today()}" aria-label="Due date"><button class="primary">Add task</button></form>`;
+const taskRows=a=>sorted(a).map(t=>`<div class="row"><input type="checkbox" id="t-${esc(t.id)}" data-act="task" data-id="${esc(t.id)}" ${t.done?"checked":""}><div class="grow"><label for="t-${esc(t.id)}"><span class="${t.done?"done":""}">${esc(t.text)}</span><br><span class="mute">${nice(t.due)}${t.due?" · "+validTime(t.time):""}${!t.done&&t.due&&t.due<today()?" · Overdue":""}</span></label>${!t.done&&t.due?`<br><button type="button" class="cal" data-act="cal" data-id="${esc(t.id)}">Add to calendar</button>`:""}</div>${del("tasks",t.id,t.text)}</div>`).join("");
+const addTask=()=>`<form data-form="tasks"><input type="text" id="task-text" name="text" placeholder="New task" aria-label="New task" required><input type="date" id="task-due" name="due" value="${today()}" aria-label="Due date"><input type="time" id="task-time" name="time" value="09:00" aria-label="Reminder time"><button class="primary">Add task</button></form>`;
 
 const V={
 Dashboard(){
@@ -170,6 +191,7 @@ document.addEventListener("click",e=>{
     S.tasks.push(...[["Draft research proposal",0],["Study AI for 1 hour",1],["Script next video",3]].map(([a,i])=>x({text:"Example: "+a,due:plus(i),done:false})));
     S.habits.push(...["Exercise","Read","Meditate"].map(a=>x({name:"Example: "+a,days:[]})));
     ["goals","tasks","habits"].forEach(save)}
+  if(act==="cal")addToCalendar(S.tasks.find(x=>x.id===id));
   if(act==="backup")backup();
   if(act==="restore"&&pending){Object.assign(S,pending);pending=null;save();if(!msg){msg="Backup restored.";render()}}
   if(act==="cancel"){pending=null;render()}
